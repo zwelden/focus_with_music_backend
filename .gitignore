@@ -1,0 +1,15 @@
+# OSX directory file
+.DS_Store
+
+# env files
+.flaskenv
+.env 
+
+# venv
+venv/
+
+# sqlite db
+app.db
+
+# pycache 
+**/__pycache__
