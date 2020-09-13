@@ -1,4 +1,7 @@
 import enum
+import base64
+import os
+from datetime import datetime, timedelta
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -21,15 +24,33 @@ class User(db.Model):
         secondary=user_pinned_music, 
         lazy='dynamic',
         backref=db.backref('users', lazy='dynamic'))
-    token = db.relationship('UserToken', backref='user', lazy='dynamic')
+    tokens = db.relationship('UserToken', backref='user', lazy='dynamic')
     #relationship: playlist
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password_hash(self, password):
-        return check_password_hash(self.password_hash, passwod)
+        return check_password_hash(self.password_hash, password)
 
+    def get_user_token(self, expires_in=3000):
+        now = datetime.utcnow()
+        tokens = self.tokens.filter(
+                UserToken.expiration > now).order_by(
+                    UserToken.expiration.desc())
+        current_token = tokens[0] if tokens.count() > 0 else None
+        if (current_token and
+                current_token.expiration > now + timedelta(seconds=60)):
+            return current_token
+        if current_token:
+            current_token.revoke_token()
+        new_token = UserToken()
+        new_token.user_id = self.id 
+        new_token.token = base64.b64encode(os.urandom(24)).decode('utf8')
+        new_token.expiration = now + timedelta(seconds=expires_in)
+        db.session.add(new_token)
+        return new_token
+        
     def pin_music_item(self, music_item):
         self.pinned_music.append(music_item) 
 
@@ -59,6 +80,18 @@ class UserToken(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, )
     token = db.Column(db.String(48), unique=True, index=True)
     expiration = db.Column(db.DateTime())
+
+    @staticmethod 
+    def check_token(token):
+        user_token = UserToken.query.filter_by(token=token).first()
+        if (user_token and user_token.expiration > datetime.utcnow() and 
+                user_token.user):
+            return user_token.user
+        return None
+
+    def revoke_token(self):
+        self.expiration = datetime.utcnow() - timedelta(seconds=1)
+        db.session.add(self)
 
     def __repr__(self):
         return '<UserToken id={} user_id={}, token={}, expiration={}>'.format(

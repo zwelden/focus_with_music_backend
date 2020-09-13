@@ -15,8 +15,8 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
 
     # Blueprint registration 
-    from app.main import bp as main_bp
-    app.register_blueprint(main_bp)
+    from app.api import bp as api_bp
+    app.register_blueprint(api_bp)
 
     # app model extention 
 
