@@ -63,7 +63,10 @@ class User(db.Model):
                 user_pinned_music.c.music_item_id == music_item.id).first()
 
     def to_dict(self):
-        pass 
+        return {
+            'id': self.id,
+            'email': self.email
+        }
 
     def from_dict(self, data, new_user=False):
         for field in ['email']:
