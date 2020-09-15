@@ -1,8 +1,8 @@
-"""init migrate v2
+"""init migrate
 
-Revision ID: 7274a2cec645
+Revision ID: 32d8a4bc18f2
 Revises: 
-Create Date: 2020-09-10 21:53:36.586231
+Create Date: 2020-09-14 21:35:47.584569
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '7274a2cec645'
+revision = '32d8a4bc18f2'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -24,6 +24,7 @@ def upgrade():
     sa.Column('resource_id', sa.String(length=48), nullable=True),
     sa.Column('pin_count', sa.Integer(), nullable=True),
     sa.Column('listen_count', sa.Integer(), nullable=True),
+    sa.Column('private', sa.Boolean(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('resource_type', 'resource_id')
     )
@@ -37,6 +38,13 @@ def upgrade():
     )
     op.create_index(op.f('ix_user_email'), 'user', ['email'], unique=True)
     op.create_table('user_pinned_music',
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('music_item_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['music_item_id'], ['music_item.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('user_id', 'music_item_id')
+    )
+    op.create_table('user_private_music',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('music_item_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['music_item_id'], ['music_item.id'], ),
@@ -61,6 +69,7 @@ def downgrade():
     op.drop_index(op.f('ix_user_token_user_id'), table_name='user_token')
     op.drop_index(op.f('ix_user_token_token'), table_name='user_token')
     op.drop_table('user_token')
+    op.drop_table('user_private_music')
     op.drop_table('user_pinned_music')
     op.drop_index(op.f('ix_user_email'), table_name='user')
     op.drop_table('user')

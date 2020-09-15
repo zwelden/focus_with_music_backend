@@ -3,6 +3,7 @@ import base64
 import os
 from datetime import datetime, timedelta
 from app import db
+from flask import url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 
 user_pinned_music = db.Table('user_pinned_music', 
@@ -10,11 +11,36 @@ user_pinned_music = db.Table('user_pinned_music',
     db.Column('music_item_id', db.Integer, db.ForeignKey('music_item.id'), primary_key=True)   
 )
 
+user_private_music = db.Table('user_private_music',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('music_item_id', db.Integer, db.ForeignKey('music_item.id'), primary_key=True)
+)
+
 class MusicTypeEnum(enum.Enum):
     youtube = 'youtube'
     soundcloud = 'soundcloud'
 
-class User(db.Model):
+class PaginatedAPIMixin(object):
+    @staticmethod 
+    def to_collection_dict(query, page, per_page, endpoint, **kwargs):
+        resources = query.paginate(page, per_page, False)
+        data = {
+            'items': [item.to_dict() for item in resources.items],
+            '_meta': {
+                'page': page, 
+                'per_page': per_page,
+                'total_pages': resources.pages,
+                'total_items': resources.total
+            },
+            '_links': {
+                'self': url_for(endpoint, page=page, per_page=per_page, **kwargs),
+                'next': url_for(endpoint, page=page + 1, per_page=per_page, **kwargs),
+                'prev': url_for(endpoint, page=page - 1, per_page=per_page, **kwargs)
+            }
+        }
+        return data
+
+class User(PaginatedAPIMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, index=True)
     password_hash = db.Column(db.String(128))
@@ -24,6 +50,11 @@ class User(db.Model):
         secondary=user_pinned_music, 
         lazy='dynamic',
         backref=db.backref('users', lazy='dynamic'))
+    private_music = db.relationship(
+        'MusicItem',
+        secondary=user_private_music,
+        lazy='dynamic', 
+        backref=db.backref('pinned_users', lazy='dynamic'))
     tokens = db.relationship('UserToken', backref='user', lazy='dynamic')
     #relationship: playlist
 
@@ -50,6 +81,9 @@ class User(db.Model):
         new_token.expiration = now + timedelta(seconds=expires_in)
         db.session.add(new_token)
         return new_token
+
+    def get_pinned_music(self):
+        pass
         
     def pin_music_item(self, music_item):
         self.pinned_music.append(music_item) 
@@ -108,10 +142,27 @@ class MusicItem(db.Model):
     resource_id = db.Column(db.String(48))
     pin_count = db.Column(db.Integer, index=True)
     listen_count = db.Column(db.Integer, index=True)
+    private = db.Column(db.Boolean)
+
+    def from_dict(self, data, private=False):
+        for field in ['resource_type', 'resource_id']:
+            setattr(self, field, data[field])
+        if private:
+            self.private = True
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'resource_type': self.resource_type.name,
+            'resource_id': self.resource_id,
+            'pin_count': self.pin_count,
+            'listen_count': self.listen_count,
+            'private': self.private
+        }
 
     def __repr__(self):
         return '<MusicItem id={} resource_type={} resource_id={}>'.format(
-                self.id, self.type, self.resource_id
+                self.id, self.resource_type, self.resource_id
             )
 
 # class TodoList(db.Model):
