@@ -135,7 +135,7 @@ class UserToken(db.Model):
                 self.id, self.user_id, self.token, self.expiration
             )
 
-class MusicItem(db.Model):
+class MusicItem(PaginatedAPIMixin, db.Model):
     __table_args__ = (db.UniqueConstraint('resource_type', 'resource_id'),)
     id = db.Column(db.Integer, primary_key=True)
     resource_type = db.Column(db.Enum(MusicTypeEnum))
