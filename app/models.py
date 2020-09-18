@@ -82,19 +82,25 @@ class User(PaginatedAPIMixin, db.Model):
         db.session.add(new_token)
         return new_token
 
-    def get_pinned_music(self):
-        pass
-        
     def pin_music_item(self, music_item):
         self.pinned_music.append(music_item) 
 
     def unpin_music_item(self, music_item):
-        if self.is_pinned(music_item):
-            self.pinned_music.remove(music_item)
+        self.pinned_music.remove(music_item)
 
     def is_pinned(self, music_item):
         return self.pinned_music.filter(
                 user_pinned_music.c.music_item_id == music_item.id).first()
+
+    def create_private_music_item(self, music_item):
+        self.private_music.append(music_item)
+
+    def remove_private_music_item(self, music_item):
+        self.private_music.remove(music_item)
+
+    def is_in_private_list(self, music_item):
+        return self.pinned_music.filter(
+                user_private_music.c.music_item_id == music_item.id).first()
 
     def to_dict(self):
         return {
