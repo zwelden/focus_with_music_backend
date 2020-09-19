@@ -1,4 +1,4 @@
-from flask import jsonify, request
+from flask import jsonify, request, url_for
 from app import db
 from app.models import User, MusicItem
 from app.api import bp 
@@ -13,8 +13,19 @@ def get_user(id):
 
 @bp.route('/users', methods=['POST'])
 def create_user():
-    pass
-
+    data = request.get_json() or {}
+    if 'email' not in data or 'password' not in data:
+        return bad_request('An email and password is required to create and account')
+    if User.query.filter_by(email = data['email']).first():
+        return bad_request('Email address already in use.')
+    user = User()
+    user.from_dict(data, new_user=True)
+    db.session.add(user)
+    db.session.commit()
+    response = jsonify(user.to_dict())
+    response.status_code = 201
+    response.headers['Location'] = url_for('api.get_user', id=user.id)
+    return response
 
 @bp.route('/music/default', methods=['GET'])
 def get_default_music_list():
