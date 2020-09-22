@@ -1,8 +1,8 @@
-"""init migrate
+"""reinit
 
-Revision ID: 32d8a4bc18f2
+Revision ID: 37de22f6bd2a
 Revises: 
-Create Date: 2020-09-14 21:35:47.584569
+Create Date: 2020-09-21 23:09:29.716340
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '32d8a4bc18f2'
+revision = '37de22f6bd2a'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -54,6 +54,7 @@ def upgrade():
     op.create_table('user_token',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
+    sa.Column('token_type', sa.String(length=24), nullable=True),
     sa.Column('token', sa.String(length=48), nullable=True),
     sa.Column('expiration', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),

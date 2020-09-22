@@ -12,4 +12,7 @@
 8. config.py
 9. `$ flask db migrate -m "init migrate"`
 10. `$ flask db upgrade`
-11. `$ flask run`
+11. `$ flask run` 
+
+## Seed DB
+`$ python manage.py seed_db`

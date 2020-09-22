@@ -64,23 +64,65 @@ class User(PaginatedAPIMixin, db.Model):
     def check_password_hash(self, password):
         return check_password_hash(self.password_hash, password)
 
-    def get_user_token(self, expires_in=3000):
+    def get_user_tokens(self, access_token_expires_in=900, 
+                        refresh_token_expires_in=7200, full_refresh=False):
         now = datetime.utcnow()
-        tokens = self.tokens.filter(
-                UserToken.expiration > now).order_by(
-                    UserToken.expiration.desc())
-        current_token = tokens[0] if tokens.count() > 0 else None
-        if (current_token and
-                current_token.expiration > now + timedelta(seconds=60)):
-            return current_token
-        if current_token:
-            current_token.revoke_token()
-        new_token = UserToken()
-        new_token.user_id = self.id 
-        new_token.token = base64.b64encode(os.urandom(24)).decode('utf8')
-        new_token.expiration = now + timedelta(seconds=expires_in)
-        db.session.add(new_token)
-        return new_token
+
+        access_token = self.tokens.filter(
+                UserToken.expiration > now, 
+                UserToken.token_type == 'access').order_by(
+                    UserToken.expiration.desc()).first()
+        
+        refresh_token = self.tokens.filter(
+                UserToken.expiration > now, 
+                UserToken.token_type == 'refresh').order_by(
+                    UserToken.expiration.desc()).first()
+
+        if (full_refresh == False and refresh_token and 
+                refresh_token.expiration > now + timedelta(seconds=120) and 
+                access_token):
+            return {
+                'access_token': access_token
+            } 
+        if (full_refresh == False and refresh_token and 
+                refresh_token.expiration > now + timedelta(seconds=120) and 
+                access_token is None):
+            new_access_token = UserToken()
+            new_access_token.user_id = self.id 
+            new_access_token.token_type = 'access'
+            new_access_token.token = base64.b64encode(os.urandom(24)).decode('utf8')
+            new_access_token.expiration = now + timedelta(
+                                            seconds=access_token_expires_in)
+            db.session.add(new_access_token)
+            return {
+                'access_token': new_access_token,
+                'refresh_token': refresh_token
+            } 
+        if refresh_token:
+            refresh_token.revoke_token()
+        if access_token: 
+            access_token.revoke_token()
+
+        new_refresh_token = UserToken()
+        new_refresh_token.user_id = self.id 
+        new_refresh_token.token_type = 'refresh'
+        new_refresh_token.token = base64.b64encode(os.urandom(24)).decode('utf8')
+        new_refresh_token.expiration = now + timedelta(
+                                        seconds=refresh_token_expires_in)
+        db.session.add(new_refresh_token)
+        
+        new_access_token = UserToken()
+        new_access_token.user_id = self.id 
+        new_access_token.token_type = 'access'
+        new_access_token.token = base64.b64encode(os.urandom(24)).decode('utf8')
+        new_access_token.expiration = now + timedelta(
+                                        seconds=access_token_expires_in)
+        db.session.add(new_access_token)
+
+        return {
+                'access_token': new_access_token,
+                'refresh_token': new_refresh_token
+            } 
 
     def pin_music_item(self, music_item):
         self.pinned_music.append(music_item) 
@@ -120,13 +162,14 @@ class User(PaginatedAPIMixin, db.Model):
 
 class UserToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, )
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    token_type = db.Column(db.String(24))
     token = db.Column(db.String(48), unique=True, index=True)
     expiration = db.Column(db.DateTime())
 
     @staticmethod 
-    def check_token(token):
-        user_token = UserToken.query.filter_by(token=token).first()
+    def check_token(token, token_type='access'):
+        user_token = UserToken.query.filter_by(token=token, token_type=token_type).first()
         if (user_token and user_token.expiration > datetime.utcnow() and 
                 user_token.user):
             return user_token.user
@@ -137,8 +180,8 @@ class UserToken(db.Model):
         db.session.add(self)
 
     def __repr__(self):
-        return '<UserToken id={} user_id={}, token={}, expiration={}>'.format(
-                self.id, self.user_id, self.token, self.expiration
+        return '<UserToken id={} user_id={}, token_type={}, token={}, expiration={}>'.format(
+                self.id, self.user_id, self.token_type, self.token, self.expiration
             )
 
 class MusicItem(PaginatedAPIMixin, db.Model):

@@ -1,3 +1,4 @@
+from flask import g
 from flask_httpauth import HTTPBasicAuth, HTTPTokenAuth
 from app.models import User, UserToken
 from app.api.errors import error_response, bad_request
@@ -22,6 +23,9 @@ def basic_auth_error(status):
 @token_auth.verify_token
 def verify_token(token):
     # log.info(token)
+    if hasattr(g, 'token_auth_type') and g.token_auth_type == 'refresh':
+        return UserToken.check_token(token, token_type='refresh') if token else None
+
     return UserToken.check_token(token) if token else None
 
 @token_auth.error_handler 

@@ -1,9 +1,17 @@
-from flask import jsonify, request, url_for
+from flask import jsonify, request, url_for, g
+from functools import wraps
 from app import db
 from app.models import User, MusicItem
 from app.api import bp 
 from app.api.errors import bad_request
 from app.api.auth import basic_auth, token_auth
+
+def force_refresh_authentication(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        g.token_auth_type = 'refresh'
+        return f(*args, **kwargs)
+    return decorated
 
 @bp.route('/users/<int:id>', methods=['GET'])
 @token_auth.login_required
@@ -90,7 +98,7 @@ def unpin_music(id):
     db.session.add(music_item)
     user.unpin_music_item(music_item)
     db.session.commit()
-    return '', 200
+    return '', 204
 
 @bp.route('/music/private', methods=['GET'])
 @token_auth.login_required 
@@ -122,7 +130,7 @@ def create_music_item():
         music_item.from_dict(data, private=True)
     user.create_private_music_item(music_item)
     db.session.commit()
-    return '', 200
+    return '', 201
 
 @bp.route('/music/private/<int:id>', methods=['DELETE'])
 @token_auth.login_required 
@@ -138,15 +146,34 @@ def remove_from_private_music_list(id):
 
 @bp.route('/tokens', methods=['POST'])
 @basic_auth.login_required
-def get_user_token():
-    user_token = basic_auth.current_user().get_user_token()
+def get_user_tokens():
+    user_tokens = basic_auth.current_user().get_user_tokens()
+    access_token = user_tokens['access_token']
+    refresh_token = user_tokens['refresh_token']
     db.session.commit()
-    return jsonify({'user_token': user_token.token})
+    return jsonify({
+        'access_token': access_token.token, 
+        'refresh_token': refresh_token.token
+    })
+
+@bp.route('/tokens/refresh', methods=['POST'])
+@force_refresh_authentication
+@token_auth.login_required
+def refresh_tokens():
+    user_tokens = basic_auth.current_user().get_user_tokens(full_refresh=True)
+    access_token = user_tokens['access_token']
+    refresh_token = user_tokens['refresh_token']
+    db.session.commit()
+    return jsonify({
+        'access_token': access_token.token, 
+        'refresh_token': refresh_token.token
+    })
 
 @bp.route('/tokens', methods=['DELETE'])
 @token_auth.login_required
 def revoke_user_token():
-    token = token_auth.current_user().get_user_token()
-    token.revoke_token()
+    tokens = token_auth.current_user().get_user_tokens()
+    tokens[0].revoke_token()
+    tokens[1].revoke_token()
     db.session.commit()
     return '', 204
