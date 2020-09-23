@@ -172,8 +172,8 @@ def refresh_tokens():
 @bp.route('/tokens', methods=['DELETE'])
 @token_auth.login_required
 def revoke_user_token():
-    tokens = token_auth.current_user().get_user_tokens()
-    tokens[0].revoke_token()
-    tokens[1].revoke_token()
+    user_tokens = token_auth.current_user().get_user_tokens()
+    user_tokens['access_token'].revoke_token()
+    user_tokens['refresh_token'].revoke_token()
     db.session.commit()
     return '', 204
